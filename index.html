@@ -3,11 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Chat Global</title>
-
 <style>
-
 body{
     margin:0;
     font-family:system-ui;
@@ -16,7 +13,7 @@ body{
     display:flex;
 }
 
-/* JOIN */
+/* JOIN SCREEN */
 #join{
     margin:auto;
     backdrop-filter:blur(20px);
@@ -47,7 +44,6 @@ button{
 }
 
 /* APP */
-
 #app{
     display:none;
     flex-direction:column;
@@ -106,17 +102,15 @@ form{
 </head>
 <body>
 
-<!-- JOIN -->
+<!-- JOIN SCREEN -->
 <div id="join">
 <h2>Masuk Chat</h2>
 <input id="name" placeholder="Nama kamu">
 <button onclick="join()">Masuk</button>
 </div>
 
-
 <!-- APP -->
 <div id="app">
-
 <header>
 💬 Global Chat
 <div id="online" style="font-size:12px;opacity:.8"></div>
@@ -131,9 +125,7 @@ form{
     <button type="button" onclick="imageInput.click()">📷</button>
     <button>Kirim</button>
 </form>
-
 </div>
-
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -141,13 +133,12 @@ form{
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
 <script>
-
 firebase.initializeApp({
     apiKey: "AIzaSyDIRVKsEXcaxxsrYr-6z7-AAakvgsfkFLo",
     authDomain: "anonim-chat-web.firebaseapp.com",
     databaseURL: "https://anonim-chat-web-default-rtdb.asia-southeast1.firebasedatabase.app/",
     projectId: "anonim-chat-web",
-    storageBucket: "anonim-chat-web.firebasestorage.app",
+    storageBucket: "anonim-chat-web.appspot.com",
     messagingSenderId: "888574930133",
     appId: "1:888574930133:web:c1cb6e0bc4e8ffcd64c65c"
 });
@@ -158,23 +149,21 @@ const storage = firebase.storage();
 let username;
 const userId = Date.now()+Math.random();
 
+// global references
 const chatRef = db.ref("global/messages");
 const onlineRef = db.ref("global/online/"+userId);
 const typingRef = db.ref("global/typing/"+userId);
 
 function join(){
-
-    username =
-        document.getElementById("name").value ||
-        "User"+Math.floor(Math.random()*9999);
+    username = document.getElementById("name").value.trim() || "User"+Math.floor(Math.random()*9999);
 
     document.getElementById("join").style.display="none";
     document.getElementById("app").style.display="flex";
+
+    initChat();
 }
 
-
 /* ONLINE */
-
 db.ref(".info/connected").on("value", snap=>{
     if(snap.val()){
         onlineRef.set(true);
@@ -182,59 +171,45 @@ db.ref(".info/connected").on("value", snap=>{
     }
 });
 
-db.ref("global/online")
-.on("value", snap=>{
-    document.getElementById("online").innerText =
-        snap.numChildren()+" online";
+db.ref("global/online").on("value", snap=>{
+    document.getElementById("online").innerText = snap.numChildren()+" online";
 });
 
+/* RECEIVE MESSAGES */
+function initChat(){
+    chatRef.limitToLast(100).on("child_added", snap=>{
+        const data = snap.val();
+        const div = document.createElement("div");
+        div.className = "bubble "+(data.user===username?"me":"other");
 
-/* RECEIVE */
+        let status="";
+        if(data.user===username){
+            status = data.read?"✔✔":"✔";
+        }
 
-chatRef.limitToLast(100)
-.on("child_added", snap=>{
+        div.innerHTML=`<b>${data.user}</b><br>
+            ${data.text||""}
+            ${data.image?`<img src="${data.image}">`:""}
+            <div style="font-size:10px;opacity:.7">${status}</div>`;
 
-    const data = snap.val();
+        document.getElementById("chat").appendChild(div);
+        document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
 
-    const div = document.createElement("div");
+        if(data.user!==username){
+            chatRef.child(snap.key).update({read:true});
+        }
+    });
+}
 
-    div.className =
-        "bubble "+(data.user===username?"me":"other");
-
-    let status="";
-
-    if(data.user===username){
-        status = data.read ? "✔✔":"✔";
-    }
-
-    div.innerHTML=
-        `<b>${data.user}</b><br>
-        ${data.text||""}
-        ${data.image?`<img src="${data.image}">`:""}
-        <div style="font-size:10px;opacity:.7">${status}</div>`;
-
-    chat.appendChild(div);
-    chat.scrollTop=chat.scrollHeight;
-
-    if(data.user!==username){
-        chatRef.child(snap.key).update({read:true});
-    }
-});
-
-
-/* SEND */
-
+/* SEND TEXT */
 function sendText(e){
-
     e.preventDefault();
-
-    const input=document.getElementById("msg");
-    const text=input.value.trim();
-
+    const input = document.getElementById("msg");
+    const text = input.value.trim();
     if(!text) return;
 
     chatRef.push({
-        user:username,
+        user: username,
         text,
         read:false,
         time:Date.now()
@@ -244,58 +219,43 @@ function sendText(e){
     typingRef.remove();
 }
 
-
-/* IMAGE */
-
+/* SEND IMAGE */
 imageInput.onchange = async function(){
-
-    const file=this.files[0];
+    const file = this.files[0];
     if(!file) return;
+    if(file.size > 2*1024*1024){
+        alert("Gambar max 2MB");
+        return;
+    }
 
-    const ref=storage.ref("global/"+Date.now());
-
+    const ref = storage.ref("global/"+Date.now());
     await ref.put(file);
-
-    const url=await ref.getDownloadURL();
+    const url = await ref.getDownloadURL();
 
     chatRef.push({
-        user:username,
-        image:url,
+        user: username,
+        image: url,
         read:false,
         time:Date.now()
     });
 }
 
-
 /* TYPING */
-
-const input=document.getElementById("msg");
-
+const input = document.getElementById("msg");
 let timeout;
 
-input.addEventListener("input",()=>{
-
+input.addEventListener("input", ()=>{
     typingRef.set(true);
-
     clearTimeout(timeout);
-
-    timeout=setTimeout(()=>{
-        typingRef.remove();
-    },1500);
+    timeout = setTimeout(()=>{ typingRef.remove(); },1500);
 });
 
-db.ref("global/typing")
-.on("value",snap=>{
-
+db.ref("global/typing").on("value", snap=>{
     let text="";
-
     snap.forEach(child=>{
-        if(child.key!=userId){
-            text="Seseorang sedang mengetik...";
-        }
+        if(child.key != userId) text="Seseorang sedang mengetik...";
     });
-
-    document.getElementById("typing").innerText=text;
+    document.getElementById("typing").innerText = text;
 });
 
 </script>
