@@ -4,11 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Chat Room</title>
+<title>Chat Global</title>
 
 <style>
 
-/* BACKGROUND MODERN */
 body{
     margin:0;
     font-family:system-ui;
@@ -17,7 +16,7 @@ body{
     display:flex;
 }
 
-/* JOIN SCREEN */
+/* JOIN */
 #join{
     margin:auto;
     backdrop-filter:blur(20px);
@@ -25,7 +24,7 @@ body{
     padding:30px;
     border-radius:20px;
     color:white;
-    width:300px;
+    width:280px;
 }
 
 input{
@@ -47,19 +46,18 @@ button{
     font-weight:bold;
 }
 
-/* CHAT UI */
+/* APP */
+
 #app{
     display:none;
     flex-direction:column;
     width:100%;
-    height:100vh;
 }
 
 header{
     background:rgba(0,0,0,.3);
     color:white;
     padding:12px;
-    backdrop-filter:blur(10px);
 }
 
 #chat{
@@ -108,28 +106,23 @@ form{
 </head>
 <body>
 
-
 <!-- JOIN -->
 <div id="join">
-    <h2>Gabung Chat</h2>
-
-    <input id="name" placeholder="Nama kamu">
-    <input id="room" placeholder="Nama room (bebas)">
-    <button onclick="join()">Masuk</button>
+<h2>Masuk Chat</h2>
+<input id="name" placeholder="Nama kamu">
+<button onclick="join()">Masuk</button>
 </div>
-
 
 
 <!-- APP -->
 <div id="app">
 
 <header>
-<span id="roomName"></span>
+💬 Global Chat
 <div id="online" style="font-size:12px;opacity:.8"></div>
 </header>
 
 <div id="chat"></div>
-
 <div id="typing"></div>
 
 <form onsubmit="sendText(event)">
@@ -140,7 +133,6 @@ form{
 </form>
 
 </div>
-
 
 
 <!-- Firebase -->
@@ -164,31 +156,22 @@ const db = firebase.database();
 const storage = firebase.storage();
 
 let username;
-let room;
-let userId = Date.now()+Math.random();
+const userId = Date.now()+Math.random();
+
+const chatRef = db.ref("global/messages");
+const onlineRef = db.ref("global/online/"+userId);
+const typingRef = db.ref("global/typing/"+userId);
 
 function join(){
 
     username =
-        document.getElementById("name").value || "User"+Math.floor(Math.random()*9999);
-
-    room =
-        document.getElementById("room").value || "global";
+        document.getElementById("name").value ||
+        "User"+Math.floor(Math.random()*9999);
 
     document.getElementById("join").style.display="none";
     document.getElementById("app").style.display="flex";
-
-    document.getElementById("roomName").innerText =
-        "Room: "+room;
-
-    initChat();
 }
 
-function initChat(){
-
-const chatRef = db.ref("rooms/"+room+"/messages");
-const onlineRef = db.ref("rooms/"+room+"/online/"+userId);
-const typingRef = db.ref("rooms/"+room+"/typing/"+userId);
 
 /* ONLINE */
 
@@ -199,7 +182,7 @@ db.ref(".info/connected").on("value", snap=>{
     }
 });
 
-db.ref("rooms/"+room+"/online")
+db.ref("global/online")
 .on("value", snap=>{
     document.getElementById("online").innerText =
         snap.numChildren()+" online";
@@ -218,36 +201,35 @@ chatRef.limitToLast(100)
     div.className =
         "bubble "+(data.user===username?"me":"other");
 
-    let status = "";
+    let status="";
 
     if(data.user===username){
-        status = data.read ? "✔✔" : "✔";
+        status = data.read ? "✔✔":"✔";
     }
 
-    div.innerHTML =
+    div.innerHTML=
         `<b>${data.user}</b><br>
-        ${data.text || ""}
-        ${data.image ? `<img src="${data.image}">`:""}
+        ${data.text||""}
+        ${data.image?`<img src="${data.image}">`:""}
         <div style="font-size:10px;opacity:.7">${status}</div>`;
 
     chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    chat.scrollTop=chat.scrollHeight;
 
-    // mark read
     if(data.user!==username){
         chatRef.child(snap.key).update({read:true});
     }
 });
 
 
-/* SEND TEXT */
+/* SEND */
 
-window.sendText = function(e){
+function sendText(e){
 
     e.preventDefault();
 
-    const input = document.getElementById("msg");
-    const text = input.value.trim();
+    const input=document.getElementById("msg");
+    const text=input.value.trim();
 
     if(!text) return;
 
@@ -267,13 +249,14 @@ window.sendText = function(e){
 
 imageInput.onchange = async function(){
 
-    const file = this.files[0];
+    const file=this.files[0];
     if(!file) return;
 
-    const ref = storage.ref("rooms/"+room+"/"+Date.now());
+    const ref=storage.ref("global/"+Date.now());
 
     await ref.put(file);
-    const url = await ref.getDownloadURL();
+
+    const url=await ref.getDownloadURL();
 
     chatRef.push({
         user:username,
@@ -286,23 +269,23 @@ imageInput.onchange = async function(){
 
 /* TYPING */
 
-const input = document.getElementById("msg");
+const input=document.getElementById("msg");
 
 let timeout;
 
-input.addEventListener("input", ()=>{
+input.addEventListener("input",()=>{
 
     typingRef.set(true);
 
     clearTimeout(timeout);
 
-    timeout = setTimeout(()=>{
+    timeout=setTimeout(()=>{
         typingRef.remove();
     },1500);
 });
 
-db.ref("rooms/"+room+"/typing")
-.on("value", snap=>{
+db.ref("global/typing")
+.on("value",snap=>{
 
     let text="";
 
@@ -314,8 +297,6 @@ db.ref("rooms/"+room+"/typing")
 
     document.getElementById("typing").innerText=text;
 });
-
-}
 
 </script>
 
