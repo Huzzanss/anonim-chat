@@ -4,56 +4,85 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Chat Anonim</title>
+<title>Chat Room</title>
 
 <style>
 
+/* BACKGROUND MODERN */
 body{
     margin:0;
     font-family:system-ui;
-    background:#0b141a;
+    height:100vh;
+    background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
     display:flex;
+}
+
+/* JOIN SCREEN */
+#join{
+    margin:auto;
+    backdrop-filter:blur(20px);
+    background:rgba(255,255,255,.08);
+    padding:30px;
+    border-radius:20px;
+    color:white;
+    width:300px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    border-radius:10px;
+    border:none;
+    margin-top:10px;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border:none;
+    border-radius:10px;
+    background:#00c896;
+    color:white;
+    font-weight:bold;
+}
+
+/* CHAT UI */
+#app{
+    display:none;
     flex-direction:column;
+    width:100%;
     height:100vh;
 }
 
-/* HEADER */
 header{
-    background:#202c33;
+    background:rgba(0,0,0,.3);
     color:white;
     padding:12px;
+    backdrop-filter:blur(10px);
 }
 
-#online{
-    font-size:12px;
-    opacity:.7;
-}
-
-/* CHAT AREA */
 #chat{
     flex:1;
-    overflow-y:auto;
-    padding:10px;
-    background:#111b21;
+    overflow:auto;
+    padding:15px;
 }
 
-/* MESSAGE */
 .bubble{
+    max-width:70%;
     padding:10px;
     border-radius:12px;
     margin:8px 0;
-    max-width:75%;
     color:white;
-    word-wrap:break-word;
 }
 
 .me{
-    background:#005c4b;
+    background:#00c896;
     margin-left:auto;
 }
 
 .other{
-    background:#202c33;
+    background:rgba(255,255,255,.15);
 }
 
 img{
@@ -62,52 +91,41 @@ img{
     margin-top:5px;
 }
 
-/* TYPING */
-#typing{
-    font-size:12px;
-    padding-left:10px;
-    color:gray;
-    height:18px;
-}
-
-/* INPUT */
 form{
     display:flex;
+    padding:10px;
     gap:5px;
-    padding:8px;
-    background:#202c33;
+    background:rgba(0,0,0,.3);
 }
 
-input[type="text"]{
-    flex:1;
-    padding:10px;
-    border-radius:20px;
-    border:none;
-}
-
-button{
-    border:none;
-    padding:10px 15px;
-    border-radius:20px;
-    background:#00a884;
+#typing{
     color:white;
-    font-weight:bold;
-}
-
-.file{
-    background:#00a884;
-    padding:10px;
-    border-radius:50%;
-    cursor:pointer;
+    font-size:12px;
+    padding-left:10px;
 }
 
 </style>
 </head>
 <body>
 
+
+<!-- JOIN -->
+<div id="join">
+    <h2>Gabung Chat</h2>
+
+    <input id="name" placeholder="Nama kamu">
+    <input id="room" placeholder="Nama room (bebas)">
+    <button onclick="join()">Masuk</button>
+</div>
+
+
+
+<!-- APP -->
+<div id="app">
+
 <header>
-💬 Chat Anonim
-<div id="online">Menghubungkan...</div>
+<span id="roomName"></span>
+<div id="online" style="font-size:12px;opacity:.8"></div>
 </header>
 
 <div id="chat"></div>
@@ -115,14 +133,13 @@ button{
 <div id="typing"></div>
 
 <form onsubmit="sendText(event)">
-    <label class="file">
-        📷
-        <input type="file" id="imageInput" hidden accept="image/*">
-    </label>
-
-    <input id="msg" placeholder="Tulis pesan..." autocomplete="off">
+    <input id="msg" placeholder="Tulis pesan...">
+    <input type="file" id="imageInput" hidden accept="image/*">
+    <button type="button" onclick="imageInput.click()">📷</button>
     <button>Kirim</button>
 </form>
+
+</div>
 
 
 
@@ -133,7 +150,6 @@ button{
 
 <script>
 
-// INIT
 firebase.initializeApp({
     apiKey: "AIzaSyDIRVKsEXcaxxsrYr-6z7-AAakvgsfkFLo",
     authDomain: "anonim-chat-web.firebaseapp.com",
@@ -141,49 +157,136 @@ firebase.initializeApp({
     projectId: "anonim-chat-web",
     storageBucket: "anonim-chat-web.firebasestorage.app",
     messagingSenderId: "888574930133",
-    appId: "1:888574930133:web:c1cb6e0bc4e8ffcd64c65c",
-    measurementId: "G-1NGL48QTY5"
+    appId: "1:888574930133:web:c1cb6e0bc4e8ffcd64c65c"
 });
 
 const db = firebase.database();
 const storage = firebase.storage();
 
-const chat = document.getElementById("chat");
-const input = document.getElementById("msg");
+let username;
+let room;
+let userId = Date.now()+Math.random();
 
-// user
-const userId = Date.now() + Math.random().toString(36).substr(2);
-const username = "User" + Math.floor(Math.random()*9999);
+function join(){
 
+    username =
+        document.getElementById("name").value || "User"+Math.floor(Math.random()*9999);
 
+    room =
+        document.getElementById("room").value || "global";
 
-/* =========================
-   ONLINE COUNTER
-========================= */
+    document.getElementById("join").style.display="none";
+    document.getElementById("app").style.display="flex";
 
-const onlineRef = db.ref("online-users/" + userId);
-const connectedRef = db.ref(".info/connected");
+    document.getElementById("roomName").innerText =
+        "Room: "+room;
 
-connectedRef.on("value", snap=>{
+    initChat();
+}
 
+function initChat(){
+
+const chatRef = db.ref("rooms/"+room+"/messages");
+const onlineRef = db.ref("rooms/"+room+"/online/"+userId);
+const typingRef = db.ref("rooms/"+room+"/typing/"+userId);
+
+/* ONLINE */
+
+db.ref(".info/connected").on("value", snap=>{
     if(snap.val()){
         onlineRef.set(true);
         onlineRef.onDisconnect().remove();
     }
 });
 
-db.ref("online-users").on("value", snap=>{
+db.ref("rooms/"+room+"/online")
+.on("value", snap=>{
     document.getElementById("online").innerText =
-        snap.numChildren() + " online";
+        snap.numChildren()+" online";
 });
 
 
+/* RECEIVE */
 
-/* =========================
-   TYPING INDICATOR
-========================= */
+chatRef.limitToLast(100)
+.on("child_added", snap=>{
 
-const typingRef = db.ref("typing/" + userId);
+    const data = snap.val();
+
+    const div = document.createElement("div");
+
+    div.className =
+        "bubble "+(data.user===username?"me":"other");
+
+    let status = "";
+
+    if(data.user===username){
+        status = data.read ? "✔✔" : "✔";
+    }
+
+    div.innerHTML =
+        `<b>${data.user}</b><br>
+        ${data.text || ""}
+        ${data.image ? `<img src="${data.image}">`:""}
+        <div style="font-size:10px;opacity:.7">${status}</div>`;
+
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+
+    // mark read
+    if(data.user!==username){
+        chatRef.child(snap.key).update({read:true});
+    }
+});
+
+
+/* SEND TEXT */
+
+window.sendText = function(e){
+
+    e.preventDefault();
+
+    const input = document.getElementById("msg");
+    const text = input.value.trim();
+
+    if(!text) return;
+
+    chatRef.push({
+        user:username,
+        text,
+        read:false,
+        time:Date.now()
+    });
+
+    input.value="";
+    typingRef.remove();
+}
+
+
+/* IMAGE */
+
+imageInput.onchange = async function(){
+
+    const file = this.files[0];
+    if(!file) return;
+
+    const ref = storage.ref("rooms/"+room+"/"+Date.now());
+
+    await ref.put(file);
+    const url = await ref.getDownloadURL();
+
+    chatRef.push({
+        user:username,
+        image:url,
+        read:false,
+        time:Date.now()
+    });
+}
+
+
+/* TYPING */
+
+const input = document.getElementById("msg");
 
 let timeout;
 
@@ -198,112 +301,21 @@ input.addEventListener("input", ()=>{
     },1500);
 });
 
-db.ref("typing").on("value", snap=>{
+db.ref("rooms/"+room+"/typing")
+.on("value", snap=>{
 
-    let typingText = "";
+    let text="";
 
     snap.forEach(child=>{
-        if(child.key !== userId){
-            typingText = "Seseorang sedang mengetik...";
+        if(child.key!=userId){
+            text="Seseorang sedang mengetik...";
         }
     });
 
-    document.getElementById("typing").innerText = typingText;
+    document.getElementById("typing").innerText=text;
 });
 
-
-
-/* =========================
-   SEND TEXT
-========================= */
-
-function sendText(e){
-    e.preventDefault();
-
-    const text = input.value.trim();
-
-    if(text === "") return;
-
-    if(text.length > 200){
-        alert("Maksimal 200 karakter!");
-        return;
-    }
-
-    db.ref("messages").push({
-        user:username,
-        text:text,
-        time:Date.now()
-    });
-
-    input.value="";
-    typingRef.remove();
 }
-
-
-
-/* =========================
-   SEND IMAGE
-========================= */
-
-document.getElementById("imageInput")
-.addEventListener("change", async function(){
-
-    const file = this.files[0];
-    if(!file) return;
-
-    if(file.size > 2 * 1024 * 1024){
-        alert("Gambar maksimal 2MB!");
-        return;
-    }
-
-    const ref = storage.ref("chat-images/" + Date.now());
-
-    await ref.put(file);
-
-    const url = await ref.getDownloadURL();
-
-    db.ref("messages").push({
-        user:username,
-        image:url,
-        time:Date.now()
-    });
-});
-
-
-
-/* =========================
-   RECEIVE MESSAGE
-========================= */
-
-db.ref("messages")
-.limitToLast(100)
-.on("child_added", snap=>{
-
-    const data = snap.val();
-
-    const div = document.createElement("div");
-
-    div.className =
-        "bubble " +
-        (data.user === username ? "me":"other");
-
-    let content =
-        `<b>${data.user === username ? "Kamu" : data.user}</b><br>`;
-
-    if(data.text){
-        content += data.text;
-    }
-
-    if(data.image){
-        content += `<img src="${data.image}">`;
-    }
-
-    div.innerHTML = content;
-
-    chat.appendChild(div);
-
-    chat.scrollTop = chat.scrollHeight;
-});
 
 </script>
 
