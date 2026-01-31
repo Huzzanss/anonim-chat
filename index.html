@@ -3,74 +3,88 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Chat Anomim</title>
 
 <style>
+
 body{
     margin:0;
     font-family: system-ui;
-    background:#0f172a;
-    color:white;
+    background:#0b141a;
     display:flex;
     flex-direction:column;
     height:100vh;
 }
 
 header{
+    background:#202c33;
+    color:white;
     padding:15px;
-    text-align:center;
     font-weight:bold;
-    background:#020617;
-    box-shadow:0 2px 10px rgba(0,0,0,.5);
 }
 
 #chat{
     flex:1;
     overflow-y:auto;
-    padding:15px;
+    padding:10px;
+    background:#111b21;
 }
 
-.msg{
-    background:#1e293b;
+.bubble{
     padding:10px;
     border-radius:12px;
-    margin-bottom:10px;
-    max-width:80%;
+    margin:8px 0;
+    max-width:75%;
+    color:white;
     word-wrap:break-word;
 }
 
 .me{
-    background:#2563eb;
+    background:#005c4b;
     margin-left:auto;
+}
+
+.other{
+    background:#202c33;
+}
+
+img{
+    max-width:100%;
+    border-radius:10px;
+    margin-top:5px;
 }
 
 form{
     display:flex;
-    padding:10px;
-    gap:10px;
-    background:#020617;
+    gap:5px;
+    padding:8px;
+    background:#202c33;
 }
 
-input{
+input[type="text"]{
     flex:1;
-    padding:12px;
-    border-radius:10px;
+    padding:10px;
+    border-radius:20px;
     border:none;
-    outline:none;
 }
 
 button{
-    padding:12px 18px;
     border:none;
-    border-radius:10px;
-    background:#22c55e;
+    padding:10px 15px;
+    border-radius:20px;
+    background:#00a884;
     color:white;
     font-weight:bold;
 }
 
-button:active{
-    transform:scale(.95);
+.file{
+    background:#00a884;
+    padding:10px;
+    border-radius:50%;
+    cursor:pointer;
 }
+
 </style>
 </head>
 <body>
@@ -79,67 +93,114 @@ button:active{
 
 <div id="chat"></div>
 
-<form onsubmit="send(event)">
-    <input id="msg" placeholder="Tulis pesan..." autocomplete="off"/>
+<form onsubmit="sendText(event)">
+    <label class="file">
+        📷
+        <input type="file" id="imageInput" hidden accept="image/*">
+    </label>
+
+    <input id="msg" placeholder="Tulis pesan...">
     <button>Kirim</button>
 </form>
 
 
-<!-- Firebase -->
+<!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
 <script>
+
 firebase.initializeApp({
     apiKey: "AIzaSyDIRVKsEXcaxxsrYr-6z7-AAakvgsfkFLo",
     authDomain: "anonim-chat-web.firebaseapp.com",
     databaseURL: "https://anonim-chat-web-default-rtdb.asia-southeast1.firebasedatabase.app/",
-    projectId: "anonim-chat-web"
+    projectId: "anonim-chat-web",
+    storageBucket: "anonim-chat-web.firebasestorage.app",
+    messagingSenderId: "888574930133",
+    appId: "1:888574930133:web:c1cb6e0bc4e8ffcd64c65c",
+    measurementId: "G-1NGL48QTY5"
 });
 
 const db = firebase.database().ref("messages");
+const storage = firebase.storage();
+
 const chat = document.getElementById("chat");
 
-// random username
 const username = "User" + Math.floor(Math.random()*9999);
 
-// kirim pesan
-function send(e){
+
+// kirim text
+function sendText(e){
     e.preventDefault();
 
     const input = document.getElementById("msg");
     const text = input.value.trim();
 
     if(text === "") return;
+    if(text.length > 200) return alert("Maks 200 karakter!");
 
     db.push({
-        user: username,
-        text: text
+        user:username,
+        text:text,
+        time:Date.now()
     });
 
     input.value="";
 }
 
+
+// upload gambar
+document.getElementById("imageInput").addEventListener("change", async function(){
+
+    const file = this.files[0];
+    if(!file) return;
+
+    if(file.size > 2 * 1024 * 1024){
+        alert("Gambar max 2MB!");
+        return;
+    }
+
+    const ref = storage.ref("images/" + Date.now());
+
+    await ref.put(file);
+
+    const url = await ref.getDownloadURL();
+
+    db.push({
+        user:username,
+        image:url,
+        time:Date.now()
+    });
+});
+
+
 // tampilkan pesan realtime
-db.limitToLast(100).on("child_added", snapshot=>{
-    const data = snapshot.val();
+db.limitToLast(100).on("child_added", snap=>{
+
+    const data = snap.val();
 
     const div = document.createElement("div");
 
-    div.className = "msg";
+    div.className = "bubble " + (data.user === username ? "me":"other");
 
-    if(data.user === username){
-        div.classList.add("me");
-        div.innerHTML = `<b>Kamu</b><br>${data.text}`;
-    }else{
-        div.innerHTML = `<b>${data.user}</b><br>${data.text}`;
+    let content = `<b>${data.user === username ? "Kamu" : data.user}</b><br>`;
+
+    if(data.text){
+        content += data.text;
     }
+
+    if(data.image){
+        content += `<img src="${data.image}">`;
+    }
+
+    div.innerHTML = content;
 
     chat.appendChild(div);
 
-    // auto scroll
     chat.scrollTop = chat.scrollHeight;
 });
+
 </script>
 
 </body>
