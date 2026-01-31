@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Anonim</title>
+    <style>
+        body{
+            font-family: Arial;
+            max-width:600px;
+            margin:auto;
+        }
+        #chat{
+            border:1px solid #ccc;
+            height:300px;
+            overflow:auto;
+            padding:10px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Chat Anonim</h2>
+<div id="chat"></div>
+
+<input id="msg" placeholder="Tulis pesan..." />
+<button onclick="send()">Kirim</button>
+
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+// GANTI dengan config kamu
+firebase.initializeApp({
+    apiKey: "AIzaSyDIRVKsEXcaxxsrYr-6z7-AAakvgsfkFLo",
+    authDomain: "anonim-chat-web.firebaseapp.com",
+    databaseURL: "https://anonim-chat-web-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: "anonim-chat-web"
+});
+
+const db = firebase.database().ref("messages");
+
+db.on("child_added", snapshot => {
+    const div = document.createElement("div");
+    div.textContent = snapshot.val();
+    document.getElementById("chat").appendChild(div);
+});
+
+function send(){
+    const input = document.getElementById("msg");
+    db.push(input.value);
+    input.value="";
+}
+</script>
+
+</body>
+</html>
